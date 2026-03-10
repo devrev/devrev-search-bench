@@ -1,7 +1,9 @@
 datasets
 pandas
-openai
 faiss-cpu
 numpy
 tqdm
 pyarrow
+rank-bm25
+sentence-transformers
+torch
