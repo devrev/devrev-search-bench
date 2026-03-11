@@ -15,6 +15,7 @@ build/
 embeddings.npy
 faiss_index/
 data/
+benchmark_results/
 
 # Jupyter
 .ipynb_checkpoints/

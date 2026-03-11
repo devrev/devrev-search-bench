@@ -48,6 +48,8 @@ jupyter notebook devrev_search.ipynb
 ```
 devrev-search/
 ├── devrev_search.ipynb      # Main notebook: embed, index, search, evaluate
+├── evaluate.py              # IR metrics: NDCG@k, MRR, Recall@k, Precision@k, MAP
+├── compare_models.py        # Multi-model benchmark script (Ollama models)
 ├── download_datasets.py     # Standalone script to download datasets as parquet
 ├── requirements.txt         # Python dependencies
 ├── test_queries_results.json # Search results for test queries
@@ -62,7 +64,8 @@ devrev-search/
 | **5**   | Generate embeddings (OpenAI or Ollama) and build a FAISS index                         |
 | **6**   | Interactive search — query the knowledge base                                         |
 | **7**   | Run evaluation on all test queries and save results in annotated-queries format       |
-| **8**   | Load a previously saved index (skip re-embedding)                                     |
+| **8**   | Evaluate retrieval quality against annotated queries (NDCG, MRR, Recall, Precision)  |
+| **9**   | Load a previously saved index (skip re-embedding)                                     |
 
 ## Dataset
 
@@ -89,6 +92,47 @@ Results are saved in the same format as `annotated_queries`:
   ]
 }
 ```
+
+## Multi-Model Comparison
+
+Compare multiple Ollama embedding models on the benchmark:
+
+```bash
+# Run with default models (qwen3-embedding:0.6b, nomic-embed-text, all-minilm)
+python compare_models.py
+
+# Pick specific models
+python compare_models.py --models nomic-embed-text mxbai-embed-large snowflake-arctic-embed
+
+# List all supported models
+python compare_models.py --list-models
+```
+
+Results are saved to `benchmark_results/` including:
+- Per-model retrieval results (JSON)
+- Cached embeddings (`.npy`, reused on re-runs)
+- `leaderboard.csv` with metrics for all models
+
+### Supported Ollama Models
+
+| Model | Dimensions | Size | Notes |
+|-------|-----------|------|-------|
+| `qwen3-embedding:0.6b` | 1024 | 0.6B | Default in repo |
+| `nomic-embed-text` | 768 | 274M | Popular, strong for size |
+| `mxbai-embed-large` | 1024 | 670M | High MTEB scores |
+| `snowflake-arctic-embed` | 1024 | 335M | Top retrieval performer |
+| `all-minilm` | 384 | 46M | Ultra-fast baseline |
+| `bge-m3` | 1024 | 1.2G | Multilingual, enterprise-grade |
+
+## Evaluation Metrics
+
+The `evaluate.py` module computes standard IR metrics against the 291 annotated queries:
+
+- **NDCG@k** - Normalized Discounted Cumulative Gain
+- **MRR** - Mean Reciprocal Rank
+- **MAP** - Mean Average Precision
+- **Recall@k** - Fraction of relevant docs found in top-k
+- **Precision@k** - Fraction of top-k results that are relevant
 
 ## Cost Estimate
 
