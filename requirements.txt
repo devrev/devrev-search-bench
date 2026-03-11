@@ -1,6 +1,7 @@
 datasets
 pandas
 openai
+ollama
 faiss-cpu
 numpy
 tqdm
