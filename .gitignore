@@ -13,6 +13,9 @@ build/
 
 # Large binary files
 embeddings.npy
+embeddings_bge_base.npy
+*.faiss
+*.pkl
 faiss_index/
 data/
 
