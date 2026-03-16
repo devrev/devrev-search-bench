@@ -6,3 +6,7 @@ faiss-cpu
 numpy
 tqdm
 pyarrow
+haystack-ai>=2.0.0
+qdrant-client>=2.8.0
+fastembed-haystack
+fastembed>=0.3.0
