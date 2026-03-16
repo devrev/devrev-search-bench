@@ -46,6 +46,7 @@ from haystack_integrations.components.embedders.fastembed import (
 
 # -------------------------------------------
 # Configuration
+# -------------------------------------------
 BATCH_SIZE = 256
 EMBEDDING_DIM = 1024
 
@@ -69,8 +70,9 @@ TOP_K = 10
 OUTPUT_JSON = "test_queries_results.json"
 OUTPUT_PARQUET = "test_queries_results.parquet"
 
-
-# Dataset helper
+# -------------------------------------------
+# Dataset helpers
+# -------------------------------------------
 class DatasetType(Enum):
     ANNOTATED_QUERIES = "annotated_queries"
     TEST_QUERIES = "test_queries"
@@ -102,7 +104,9 @@ def get_dataset(dataset_type: DatasetType) -> pd.DataFrame:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
 
+# -------------------------------------------
 # Document store
+# -------------------------------------------
 def get_document_store(recreate: bool = False) -> QdrantDocumentStore:
     """
     Get or create a QdrantDocumentStore configured for hybrid search.
@@ -140,7 +144,9 @@ def get_document_store(recreate: bool = False) -> QdrantDocumentStore:
     )
 
 
+# -------------------------------------------
 # Indexing pipeline
+# -------------------------------------------
 def build_indexing_pipeline(document_store: QdrantDocumentStore) -> Pipeline:
     """
     Build the document indexing pipeline
@@ -211,8 +217,9 @@ def index_knowledge_base(document_store: QdrantDocumentStore) -> None:
 
     print(f"✓ Indexed {len(documents):,} documents into Qdrant.")
 
-
+# -------------------------------------------
 # Retrieval pipeline
+# -------------------------------------------
 def build_retrieval_pipeline(document_store: QdrantDocumentStore) -> Pipeline:
     """
     Build the hybrid query retrieval pipeline
@@ -272,7 +279,9 @@ def search(query: str, retrieval_pipeline: Pipeline) -> list[dict]:
     return retrievals
 
 
-# Evaluation on test queries
+# -------------------------------------------
+# Evaluation
+# -------------------------------------------
 def run_evaluation(
     retrieval_pipeline: Pipeline,
     output_json: str = OUTPUT_JSON,
@@ -326,7 +335,9 @@ def run_evaluation(
     return test_results
 
 
-# Main driver
+# -------------------------------------------
+# Main function
+# -------------------------------------------
 def main() -> None:
     """
     Run the complete search pipeline: index and retrieve
@@ -342,5 +353,8 @@ def main() -> None:
     run_evaluation(retrieval_pipeline)
 
 
+# -------------------------------------------
+# Driver code
+# -------------------------------------------
 if __name__ == "__main__":
     main()
