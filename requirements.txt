@@ -7,6 +7,7 @@ numpy
 tqdm
 pyarrow
 haystack-ai>=2.0.0
-qdrant-client>=2.8.0
+qdrant-client==1.7.1
 fastembed-haystack
 fastembed>=0.3.0
+sentence-transformers>=5.0.0
