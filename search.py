@@ -12,11 +12,13 @@ Indexing Pipeline:
 Retrieval Pipeline:
     FastembedSparseTextEmbedder (BM42) + SentenceTransformersTextEmbedder
     → QdrantHybridRetriever (RRF fusion)
+    → SentenceTransformersSimilarityRanker (bge-reranker-v2-m3, cross-encoder)
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from enum import Enum
 
 import pandas as pd
@@ -24,25 +26,51 @@ from datasets import load_dataset
 from tqdm import tqdm
 from qdrant_client import QdrantClient
 
-# Haystack core imports
+# Haystack
 from haystack import Document, Pipeline
 from haystack.components.preprocessors import DocumentCleaner
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 
-# Qdrant document store and retriever
+# Qdrant document store (pip install qdrant-haystack)
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack_integrations.components.retrievers.qdrant import QdrantHybridRetriever
 
-# Embedders (pip install fastembed-haystack)
+# HF Embedders (pip install sentence-transformers)
 from haystack.components.embedders import (
     SentenceTransformersDocumentEmbedder,
     SentenceTransformersTextEmbedder,
 )
+
+# FastEmbed Embedders (pip install fastembed-haystack)
 from haystack_integrations.components.embedders.fastembed import (
     FastembedSparseDocumentEmbedder,
     FastembedSparseTextEmbedder,
 )
+
+from haystack.components.rankers import SentenceTransformersSimilarityRanker
+
+# -------------------------------------------
+# Logging configuration
+# -------------------------------------------
+logger = logging.getLogger(__name__)
+
+
+def configure_logging(level: int = logging.INFO) -> None:
+    """Configure logging with a consistent format.
+    
+    Args:
+        level: Logging level (default: INFO)
+    """
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "[%(asctime)s] %(levelname)-8s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(level)
+
 
 # -------------------------------------------
 # Configuration
@@ -50,7 +78,7 @@ from haystack_integrations.components.embedders.fastembed import (
 BATCH_SIZE = 256
 EMBEDDING_DIM = 1024
 
-# Dense model — 1024-dim
+# Dense model
 DENSE_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 
 # BGE query prefix recommended by the model authors
@@ -59,11 +87,15 @@ DENSE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 # Sparse model — BM42
 SPARSE_MODEL = "Qdrant/bm42-all-minilm-l6-v2-attentions"
 
+# Ranker Model
+RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+
 # Qdrant connection
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
 
 # Number of documents to retrieve per query
+RETRIEVER_TOP_K = 30
 TOP_K = 10
 
 # Output files
@@ -129,7 +161,7 @@ def get_document_store(recreate: bool = False) -> QdrantDocumentStore:
         existing = {c.name for c in raw_client.get_collections().collections}
         if collection_name in existing:
             raw_client.delete_collection(collection_name)
-            print(f"✓ Dropped existing Qdrant collection '{collection_name}'.")
+            logger.info(f"Dropped existing Qdrant collection '{collection_name}'.")
         raw_client.close()
 
     return QdrantDocumentStore(
@@ -196,7 +228,7 @@ def index_knowledge_base(document_store: QdrantDocumentStore) -> None:
     kb_df = kb_df[kb_df["text"].notna() & (kb_df["text"].str.strip() != "")]
     dropped = original_count - len(kb_df)
     if dropped:
-        print(f"⚠ Dropped {dropped} row(s) with null/empty 'text' before indexing.")
+        logger.warning(f"Dropped {dropped} row(s) with null/empty 'text' before indexing.")
 
     documents: list[Document] = []
     for _, row in kb_df.iterrows():
@@ -210,12 +242,12 @@ def index_knowledge_base(document_store: QdrantDocumentStore) -> None:
         )
         documents.append(doc)
 
-    print(f"Indexing {len(documents):,} documents …")
+    logger.info(f"Indexing {len(documents):,} documents …")
 
     indexing_pipeline = build_indexing_pipeline(document_store)
     indexing_pipeline.run({"cleaner": {"documents": documents}})
 
-    print(f"✓ Indexed {len(documents):,} documents into Qdrant.")
+    logger.info(f"Indexed {len(documents):,} documents into Qdrant.")
 
 # -------------------------------------------
 # Retrieval pipeline
@@ -235,6 +267,11 @@ def build_retrieval_pipeline(document_store: QdrantDocumentStore) -> Pipeline:
 
     retriever = QdrantHybridRetriever(
         document_store=document_store,
+        top_k=RETRIEVER_TOP_K,
+    )
+    
+    reranker = SentenceTransformersSimilarityRanker(
+        model=RERANKER_MODEL,
         top_k=TOP_K,
     )
 
@@ -242,6 +279,7 @@ def build_retrieval_pipeline(document_store: QdrantDocumentStore) -> Pipeline:
     retrieval.add_component("sparse_text_embedder", sparse_text_embedder)
     retrieval.add_component("dense_text_embedder", dense_text_embedder)
     retrieval.add_component("retriever", retriever)
+    retrieval.add_component("reranker", reranker)
 
     retrieval.connect(
         "sparse_text_embedder.sparse_embedding",
@@ -251,6 +289,7 @@ def build_retrieval_pipeline(document_store: QdrantDocumentStore) -> Pipeline:
         "dense_text_embedder.embedding",
         "retriever.query_embedding",
     )
+    retrieval.connect("retriever.documents", "reranker.documents")
 
     return retrieval
 
@@ -263,11 +302,12 @@ def search(query: str, retrieval_pipeline: Pipeline) -> list[dict]:
         {
             "sparse_text_embedder": {"text": query},
             "dense_text_embedder": {"text": query},
+            "reranker": {"query": query},
         }
     )
 
     retrievals = []
-    for doc in result["retriever"]["documents"]:
+    for doc in result["reranker"]["documents"]:
         retrievals.append(
             {
                 "id": doc.meta.get("doc_id", ""),
@@ -312,25 +352,25 @@ def run_evaluation(
 
     with open(output_json, "w") as f:
         json.dump(test_results, f, indent=2)
-    print(f"✓ Results saved to {output_json}")
+    logger.info(f"Results saved to {output_json}")
 
     results_df = pd.DataFrame(test_results)
     results_df.to_parquet(output_parquet, index=False)
-    print(f"✓ Results also saved to {output_parquet}")
+    logger.info(f"Results also saved to {output_parquet}")
 
     # Display summary
-    print("=" * 60)
-    print("Test Queries Results Summary")
-    print("=" * 60)
-    print(f"Total queries    : {len(test_results)}")
-    print(f"Retrievals/query : {TOP_K}")
-    print(f"\nOutput files:")
-    print(f"  - {output_json}")
-    print(f"  - {output_parquet}")
-    print("\nFormat matches annotated_queries structure:")
-    print("  - query_id  : string")
-    print("  - query     : string")
-    print("  - retrievals: list of {id, text, title}")
+    logger.info("=" * 60)
+    logger.info("Test Queries Results Summary")
+    logger.info("=" * 60)
+    logger.info(f"Total queries    : {len(test_results)}")
+    logger.info(f"Retrievals/query : {TOP_K}")
+    logger.info(f"\nOutput files:")
+    logger.info(f"  - {output_json}")
+    logger.info(f"  - {output_parquet}")
+    logger.info("\nFormat matches annotated_queries structure:")
+    logger.info("  - query_id  : string")
+    logger.info("  - query     : string")
+    logger.info("  - retrievals: list of {id, text, title}")
 
     return test_results
 
@@ -342,15 +382,26 @@ def main() -> None:
     """
     Run the complete search pipeline: index and retrieve
     """
-    # Index knowledge base
-    document_store = get_document_store(recreate=True)
-    index_knowledge_base(document_store)
+    configure_logging(level=logging.INFO)
+    logger.info("Starting DevRev Search benchmark...")
+    
+    try:
+        # Index knowledge base
+        logger.info("Initializing document store...")
+        document_store = get_document_store(recreate=False)
+        index_knowledge_base(document_store)
 
-    # Build retrieval pipeline
-    retrieval_pipeline = build_retrieval_pipeline(document_store)
+        # Build retrieval pipeline
+        logger.info("Building retrieval pipeline...")
+        retrieval_pipeline = build_retrieval_pipeline(document_store)
 
-    # Evaluate on test queries
-    run_evaluation(retrieval_pipeline)
+        # Evaluate on test queries
+        logger.info("Running evaluation on test queries...")
+        run_evaluation(retrieval_pipeline)
+        logger.info("Evaluation completed successfully.")
+    except Exception as e:
+        logger.error(f"Error during pipeline execution: {e}", exc_info=True)
+        raise
 
 
 # -------------------------------------------

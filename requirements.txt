@@ -8,6 +8,7 @@ tqdm
 pyarrow
 haystack-ai>=2.0.0
 qdrant-client==1.7.1
+qdrant-haystack
 fastembed-haystack
 fastembed>=0.3.0
 sentence-transformers>=5.0.0
