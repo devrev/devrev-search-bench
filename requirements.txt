@@ -6,3 +6,5 @@ faiss-cpu
 numpy
 tqdm
 pyarrow
+rank-bm25
+sentence_transformers
