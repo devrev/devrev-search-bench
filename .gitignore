@@ -12,16 +12,21 @@ dist/
 build/
 
 # Large binary files
-embeddings.npy
+
 faiss_index/
 data/
 
+
 # Jupyter
 .ipynb_checkpoints/
+*.ipynb:Zone.Identifier
 
 # Environment & secrets
 .env
 *.env
+
+# Editor
+.vscode/
 
 # OS
 .DS_Store
