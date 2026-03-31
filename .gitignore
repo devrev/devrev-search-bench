@@ -13,7 +13,10 @@ build/
 
 # Large binary files
 embeddings.npy
+embeddings_local.npy
+*.pkl
 faiss_index/
+faiss_index_local/
 data/
 
 # Jupyter
