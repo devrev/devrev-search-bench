@@ -1,6 +1,3 @@
-## File to evaluate :  devrev_search_with_v2_ranking.ipynb
-
-
 # DevRev Search — Semantic Search over DevRev Knowledge Base
 
 Semantic search system for the [DevRev Search](https://huggingface.co/datasets/devrev/search) dataset. Embeds ~65K knowledge base articles using either OpenAI `text-embedding-3-small` or Ollama `qwen3-embedding:0.6b`, indexes them with FAISS, and retrieves relevant documents for test queries.
