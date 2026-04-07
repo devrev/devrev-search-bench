@@ -1,0 +1,23 @@
+# DevRev Hybrid Search — Python dependencies
+# Install: pip install -r requirements.txt
+
+# HuggingFace ecosystem
+transformers>=4.51.0          # required by Qwen3 (qwen3 arch added in 4.51)
+sentence-transformers>=2.7.0  # SentenceTransformer API for Qwen3-Embedding
+datasets>=2.14.0              # HF datasets (load_dataset)
+huggingface-hub>=0.23.0       # model download + HF_TOKEN auth
+accelerate>=0.30.0            # device_map="auto" for reranker
+tokenizers>=0.19.0
+
+# Vector store
+qdrant-client>=1.9.0          # local file-persisted mode (no Docker)
+
+# Sparse retrieval
+rank-bm25>=0.2.2
+
+# Numerics / utilities
+numpy>=1.24.0
+pandas>=2.0.0
+pyarrow>=14.0.0               # parquet read/write
+tqdm>=4.65.0
+torch>=2.1.0                  # required by transformers + sentence-transformers
