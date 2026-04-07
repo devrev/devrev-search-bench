@@ -10,11 +10,16 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+*.pkl
+*.npy
 
 # Large binary files
 embeddings.npy
 faiss_index/
 data/
+qdrant_storage/
+logs/
+checkpoints/
 
 # Jupyter
 .ipynb_checkpoints/
