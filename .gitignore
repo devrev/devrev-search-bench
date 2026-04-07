@@ -13,7 +13,10 @@ build/
 
 # Large binary files
 embeddings.npy
+*.npy
 faiss_index/
+cache*/
+*.pkl
 data/
 
 # Jupyter
