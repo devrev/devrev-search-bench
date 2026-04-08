@@ -136,13 +136,13 @@ def bm25_search(bm25, query, top_k=100):
     return top_indices, scores[top_indices]
 
 
-query_embed_cache = {}
+query_embed_cache = load_disk_cache("query_embed_cache")
 
 
 def embed_query(query_text):
     if query_text in query_embed_cache:
         return query_embed_cache[query_text]
-    for attempt in range(5):
+    for attempt in range(10):
         try:
             response = litellm_client.embeddings.create(
                 model=EMBED_MODEL,
@@ -153,10 +153,10 @@ def embed_query(query_text):
             query_embed_cache[query_text] = emb
             return emb
         except Exception as e:
-            if "429" in str(e):
-                time.sleep(min(2 ** (attempt + 1), 30))
-            else:
-                raise
+            wait = min(2 ** (attempt + 1), 60)
+            print(f"\n  Embed error (attempt {attempt+1}): {e}\n  Retrying in {wait}s...")
+            time.sleep(wait)
+    raise ConnectionError(f"Failed to embed after 10 attempts: {query_text[:50]}")
 
 
 def build_dense_index():
@@ -338,11 +338,13 @@ def main():
         if (i + 1) % 10 == 0:
             save_disk_cache("hyde_cache", hyde_cache)
             save_disk_cache("mq_cache", mq_cache)
+            save_disk_cache("query_embed_cache", query_embed_cache)
             with open(checkpoint_path, "w") as f:
                 json.dump({"next_idx": i + 1, "results": eval_results}, f)
 
     save_disk_cache("hyde_cache", hyde_cache)
     save_disk_cache("mq_cache", mq_cache)
+    save_disk_cache("query_embed_cache", query_embed_cache)
 
     print(f"\n{'=' * 60}")
     print(f"  HYBRID (OpenAI Embed + HyDE + MultiQuery + Cohere Rerank)")
