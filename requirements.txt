@@ -6,3 +6,6 @@ faiss-cpu
 numpy
 tqdm
 pyarrow
+rank-bm25
+python-dotenv
+cohere
